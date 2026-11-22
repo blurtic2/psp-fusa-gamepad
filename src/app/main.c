@@ -4,17 +4,49 @@
 #include <pspsdk.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "fusainterface.h"
+#include "config.h"
 
 PSP_MODULE_INFO("GAMEPAD", 0, 0, 2);
 PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER);
 
 #define printf	pspDebugScreenPrintf
 
+#define CONFIG_FILE    "config.ini"
+#define CONFIG_SECTION "CONFIG"
+#define VALUE_SIZE     50
+
 int done = 0;
 SceCtrlData pad;
 GP_Config settings;
 char buf[0xFF];
+
+/* Used when config.ini is missing a key or gives an unknown value */
+static const GP_Config default_settings = {
+	PSP_CTRL_NOTE,      /* AxisSwitcher    */
+	PSP_CTRL_WLAN_UP,   /* DigitalSwitcher */
+	25,                 /* DeadZone        */
+
+	PSP_CTRL_CROSS,
+	PSP_CTRL_CIRCLE,
+	PSP_CTRL_SQUARE,
+	PSP_CTRL_TRIANGLE,
+	PSP_CTRL_LTRIGGER,
+	PSP_CTRL_RTRIGGER,
+	PSP_CTRL_SELECT,
+	PSP_CTRL_START,
+
+	PSP_CTRL_HOME,
+	PSP_CTRL_VOLDOWN,
+	PSP_CTRL_VOLUP,
+	PSP_CTRL_SCREEN,
+
+	PSP_CTRL_RIGHT,
+	PSP_CTRL_LEFT,
+	PSP_CTRL_UP,
+	PSP_CTRL_DOWN
+};
 
 void waitbuttonup(int button)
 {
@@ -31,9 +63,11 @@ void display_config();
 void display_info(){
 
 	pspDebugScreenSetXY(0,0);
-	printf(" .: FuSa GAMEPAD :: v0.2 :: coded by Andy_maN :: www.foosa.do.am :.\n");
+	printf(" .: FuSa GAMEPAD :: v0.3 :: coded by Andy_maN :: www.foosa.do.am :.\n");
 	pspDebugScreenSetXY(0,32);
-	printf(" ': Axises - (X/Y/Z/Rz) (Analog+S) :: Buttons - 12 :: rd.ver 0.5 :'\n");
+	printf(" ': [         ] ::: [ %s ] :: [ AXESES: %s] :: rd.ver 1.0 :'\n",
+		(pad.Buttons & settings.DigitalSwitcher) ? "DIGITAL" : "ANALOG ",
+		(pad.Buttons & settings.AxisSwitcher) ? "Z/Rz" : "X/Y ");
 }
 
 void user_wanna_exit(){
@@ -70,100 +104,125 @@ void user_wanna_exit(){
 
 }
 
-#define str_22 " (SELECT)"
-#define str_23 " (START)"
-#define str_24 " UP"
-#define str_25 " LEFT"
-#define str_26 " DOWN"
-#define str_27 " RIGHT"
-#define str_28 " /L|"
-#define str_29 " |R\\"
-#define str_30 " (/\\)"
-#define str_31 " (O)"
-#define str_32 " (X)"
-#define str_33 " ([])"
-#define str_34 " (HOME)"
-#define str_35 " |HOLD|"
-#define str_36 " (\x0d)"
-#define str_37 " ( )"
-#define str_38 " (+)"
-#define str_39 " (-)"
-#define str_40 " |WLAN|"
+typedef struct {
+	const char *name;  /* config.ini name    */
+	const char *label; /* config screen text */
+	unsigned int mask;
+} ButtonName;
 
-char * button2str(int key)
+/* Order matches the original menu output */
+static const ButtonName button_names[] = {
+	{ "SELECT",   " (SELECT)", PSP_CTRL_SELECT   },
+	{ "START",    " (START)",  PSP_CTRL_START    },
+	{ "UP",       " UP",       PSP_CTRL_UP       },
+	{ "RIGHT",    " RIGHT",    PSP_CTRL_RIGHT    },
+	{ "DOWN",     " DOWN",     PSP_CTRL_DOWN     },
+	{ "LEFT",     " LEFT",     PSP_CTRL_LEFT     },
+	{ "LTRIGGER", " /L|",      PSP_CTRL_LTRIGGER },
+	{ "RTRIGGER", " |R\\",     PSP_CTRL_RTRIGGER },
+	{ "TRIANGLE", " (/\\)",    PSP_CTRL_TRIANGLE },
+	{ "CIRCLE",   " (O)",      PSP_CTRL_CIRCLE   },
+	{ "CROSS",    " (X)",      PSP_CTRL_CROSS    },
+	{ "SQUARE",   " ([])",     PSP_CTRL_SQUARE   },
+	{ "HOME",     " (HOME)",   PSP_CTRL_HOME     },
+	{ "NOTE",     " (\x0d)",   PSP_CTRL_NOTE     },
+	{ "SCREEN",   " ( )",      PSP_CTRL_SCREEN   },
+	{ "VOLUP",    " (+)",      PSP_CTRL_VOLUP    },
+	{ "VOLDOWN",  " (-)",      PSP_CTRL_VOLDOWN  },
+	{ "WLAN",     " |WLAN|",   PSP_CTRL_WLAN_UP  },
+};
+
+#define BUTTON_NAME_COUNT (sizeof(button_names) / sizeof(button_names[0]))
+
+char * button2str(unsigned int key)
 {
-//key &= ~(PSP_CTRL_WLAN_UP|PSP_CTRL_REMOTE|PSP_CTRL_DISC|PSP_CTRL_MS);
-if (key){
-int offset = 0;
-#define str "%s"
-#define add_to_str(a) offset += sprintf(&buf[offset],str,a);
+	unsigned int i;
 
-	if (key & PSP_CTRL_SELECT)    add_to_str(str_22);
-	if (key & PSP_CTRL_START)     add_to_str(str_23);
-	if (key & PSP_CTRL_UP)        add_to_str(str_24);
-	if (key & PSP_CTRL_RIGHT)     add_to_str(str_25);
-	if (key & PSP_CTRL_DOWN)      add_to_str(str_26);
-	if (key & PSP_CTRL_LEFT)      add_to_str(str_27);
-	if (key & PSP_CTRL_LTRIGGER)  add_to_str(str_28);
-	if (key & PSP_CTRL_RTRIGGER)  add_to_str(str_29);
-	if (key & PSP_CTRL_TRIANGLE)  add_to_str(str_30);
-	if (key & PSP_CTRL_CIRCLE)    add_to_str(str_31);
-	if (key & PSP_CTRL_CROSS)     add_to_str(str_32);
-	if (key & PSP_CTRL_SQUARE)    add_to_str(str_33);
-	if (key & PSP_CTRL_HOME)      add_to_str(str_34);
-	if (key & PSP_CTRL_HOLD)      add_to_str(str_35);
-	if (key & PSP_CTRL_NOTE)      add_to_str(str_36);
-	if (key & PSP_CTRL_SCREEN)    add_to_str(str_37);
-	if (key & PSP_CTRL_VOLUP)     add_to_str(str_38);
-	if (key & PSP_CTRL_VOLDOWN)   add_to_str(str_39);
-	if (key & PSP_CTRL_WLAN_UP)   add_to_str(str_40);
+	if (!key) return " none";
+
+	buf[0] = '\0';
+	for (i = 0; i < BUTTON_NAME_COUNT; i++)
+		if (key & button_names[i].mask) strcat(buf, button_names[i].label);
 	return buf;
 }
-return " none";
+
+/* Returns the button mask for a config.ini name, 0 if unknown.
+   Like the original, a value only has to start with the name. */
+unsigned int str2button(const char *s)
+{
+	unsigned int i;
+
+	for (i = 0; i < BUTTON_NAME_COUNT; i++)
+		if (strncmp(s, button_names[i].name, strlen(button_names[i].name)) == 0)
+			return button_names[i].mask;
+	return 0;
 }
 
 void display_config(){
+	int i;
+	int *button = &settings.Button1;
+
 	memset(buf, 0, sizeof(buf));
 
 	fusaGetConfig(&settings);
 
 	pspDebugScreenSetXY(22,4);
 
-	printf("Axis Switcher:%s\n\n",button2str(settings.AxisSwitcher));
+	printf("Axis Switcher  -%s\n",button2str(settings.AxisSwitcher));
 	pspDebugScreenSetX(22);
-	printf("POV RIGHT:%s\n",button2str(settings.POV_RX));
+	printf("Analog/Digital -%s\n",button2str(settings.DigitalSwitcher));
 	pspDebugScreenSetX(22);
-	printf("POV LEFT: %s\n",button2str(settings.POV_LX));
+	printf("Deadzone:      - %d\n\n",settings.DeadZone);
 	pspDebugScreenSetX(22);
-	printf("POV UP:   %s\n",button2str(settings.POV_UY));
+	printf("POV RIGHT:     -%s\n",button2str(settings.POV_RX));
 	pspDebugScreenSetX(22);
-	printf("POV DOWN: %s\n\n",button2str(settings.POV_DY));
+	printf("POV LEFT:      -%s\n",button2str(settings.POV_LX));
+	pspDebugScreenSetX(22);
+	printf("POV UP:        -%s\n",button2str(settings.POV_UY));
+	pspDebugScreenSetX(22);
+	printf("POV DOWN:      -%s\n\n",button2str(settings.POV_DY));
 	pspDebugScreenSetX(22);
 
-	printf("Button1: %s\n",button2str(settings.Button1));
-	pspDebugScreenSetX(22);
-	printf("Button2: %s\n",button2str(settings.Button2));
-	pspDebugScreenSetX(22);
-	printf("Button3: %s\n",button2str(settings.Button3));
-	pspDebugScreenSetX(22);
-	printf("Button4: %s\n",button2str(settings.Button4));
-	pspDebugScreenSetX(22);
-	printf("Button5: %s\n",button2str(settings.Button5));
-	pspDebugScreenSetX(22);
-	printf("Button6: %s\n",button2str(settings.Button6));
-	pspDebugScreenSetX(22);
-	printf("Button7: %s\n",button2str(settings.Button7));
-	pspDebugScreenSetX(22);
-	printf("Button8: %s\n",button2str(settings.Button8));
-	pspDebugScreenSetX(22);
-	printf("Button9: %s\n",button2str(settings.Button9));
-	pspDebugScreenSetX(22);
-	printf("Button10:%s\n",button2str(settings.Button10));
-	pspDebugScreenSetX(22);
-	printf("Button11:%s\n",button2str(settings.Button11));
-	pspDebugScreenSetX(22);
-	printf("Button12:%s\n",button2str(settings.Button12));
-	pspDebugScreenSetX(22);
+	for (i = 0; i < 12; i++) {
+		printf("Button%2d:      -%s\n", i + 1, button2str(button[i]));
+		pspDebugScreenSetX(22);
+	}
+}
+
+static void load_button(const char *key, int *value)
+{
+	char str[VALUE_SIZE];
+	unsigned int mask;
+
+	ini_gets(CONFIG_SECTION, key, "NULL", str, sizeof(str), CONFIG_FILE);
+	mask = str2button(str);
+	if (mask) *value = mask;
+}
+
+void load_config(){
+	char str[VALUE_SIZE];
+	char key[16];
+	int deadzone, i;
+	int *button = &settings.Button1;
+
+	settings = default_settings;
+
+	load_button("AxiSwitcher", &settings.AxisSwitcher);
+	load_button("DigitalSwitcher", &settings.DigitalSwitcher);
+
+	ini_gets(CONFIG_SECTION, "DeadZone", "NULL", str, sizeof(str), CONFIG_FILE);
+	deadzone = atoi(str) & 0x7F;
+	if (deadzone) settings.DeadZone = deadzone;
+
+	load_button("POV_RX", &settings.POV_RX);
+	load_button("POV_LX", &settings.POV_LX);
+	load_button("POV_UY", &settings.POV_UY);
+	load_button("POV_DY", &settings.POV_DY);
+
+	for (i = 0; i < 12; i++) {
+		sprintf(key, "Button%d", i + 1);
+		load_button(key, &button[i]);
+	}
 }
 
 int main(void)
@@ -180,13 +239,22 @@ int main(void)
 	printf(" Error - driver was not loaded\nExitting...");
 	sceKernelDelayThread(2000*1000);
 	done = 1;
+	} else {
+	load_config();
+	fusaSetConfig(&settings);
 	}
 
-	int count = 0;
+	int count = 1;
 
 	while(!done){
 
 		if (fusaIsConnected()) {
+
+			/* progress stars along the bottom line before the screen turns off */
+			if (count % 100 == 0) {
+				pspDebugScreenSetXY(count / 100 + 6, 32);
+				printf("*");
+			}
 
 			if (count > 700) fusaDisplay(0); else count++;
 
@@ -196,18 +264,19 @@ int main(void)
 
 			fusaDisplay(1);
 
-			count = 0;
-
 			fusaCtrlReadBufferPositive(&pad);
 
 			pspDebugScreenSetXY(25,15);
-	    	printf(">-CONNECTING-->\n");
+			printf(">-CONNECTING-->\n");
 
 			if (pad.Buttons & PSP_CTRL_HOME){
 			waitbuttonup(PSP_CTRL_HOME);
 			user_wanna_exit();
 			}
-    	}
+
+			display_info();
+			count = 0;
+		}
 
 		sceKernelDelayThread(10*1000);
 	}

@@ -1,5 +1,5 @@
 TARGET = loader
-OBJS   =  fusaGamePad.o main.o
+OBJS   =  fusaGamePad.o main.o config.o
 
 INCDIR = 
 CFLAGS = -O2 -G0 -Wall

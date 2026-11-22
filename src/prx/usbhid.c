@@ -1,4 +1,6 @@
 #include <pspkernel.h>
+#include <pspsdk.h>
+#include <psputilsforkernel.h>
 #include <pspctrl.h>
 #include <string.h>
 #include "fusainterface.h"
@@ -8,6 +10,17 @@ void sceDisplayEnable();
 void sceDisplayDisable();
 void sceDisplaySetBrightness( int, int );
 
+/* stubs.S */
+u32 sctrlHENFindFunction(char *modname, char *libname, u32 nid);
+int sceLedSetMode(int led, int mode, void *config);
+
+#define LED_MS   0  /* lit while AxisSwitcher is held    */
+#define LED_WLAN 1  /* lit while DigitalSwitcher is held */
+
+/* 0 = sample on VSYNC (60Hz) */
+#define CTRL_SAMPLING_CYCLE 0
+
+#define STICK_CENTER 127
 
 struct UsbbdDeviceRequest UsbBulkinReq, UsbControlReq;
 SceCtrlData pad;
@@ -15,7 +28,9 @@ SceCtrlData pad;
 int connected = 0, active = 1;
 static unsigned char data[DATA_SIZE] __attribute__ ((aligned(64)));
 GP_Config GPsettings = {
-	PSP_CTRL_NOTE,
+	PSP_CTRL_NOTE,      /* AxisSwitcher    */
+	PSP_CTRL_WLAN_UP,   /* DigitalSwitcher */
+	25,                 /* DeadZone        */
 
 	PSP_CTRL_CROSS,
 	PSP_CTRL_CIRCLE,
@@ -39,7 +54,95 @@ GP_Config GPsettings = {
 
 PSP_MODULE_INFO ("FuSaPAD", 0x1006, 1, 1);
 
-// TODO: hook sceIdStorageLookup to send our StringDescriptors (not very important)
+/*
+ * sceIdStorageLookup hook.
+ * The USB bus driver reads the vendor id and the manufacturer/product strings
+ * from idstorage key 0x41. Patch them so the PC sees VID 0x00FF "FuSa GamePad"
+ * instead of a Sony "PSP Type D" device.
+ */
+#define IDSTORAGE_LOOKUP_NID 0x6FE062D1
+#define IDS_USB_KEY          0x41
+#define IDS_USB_VID          0x000
+#define IDS_USB_MANUFACTURER 0x004
+#define IDS_USB_PRODUCT      0x118
+
+#define MAKE_JUMP(f) (0x08000000 | (((u32)(f) & 0x0FFFFFFF) >> 2))
+
+/* original first two instructions + jump back */
+static u32 lookup_trampoline[4] __attribute__ ((aligned(16)));
+static int (*sceIdStorageLookup_orig)(u16, u32, void *, u32) = (void *)lookup_trampoline;
+
+static void put_utf16(unsigned char *buf, const char *s)
+{
+	/* buf[0..1] is the string descriptor header; characters start at 2 */
+	int i;
+	for (i = 0; s[i]; i++) buf[2 + i * 2] = s[i];
+}
+
+static int sceIdStorageLookup_patched(u16 key, u32 offset, void *buf, u32 len)
+{
+	int k1 = pspSdkSetK1(0);
+	int ret = sceIdStorageLookup_orig(key, offset, buf, len);
+
+	if (key == IDS_USB_KEY) {
+		unsigned char *b = buf;
+		if (offset == IDS_USB_VID) {
+			b[0] = 0xFF;
+			b[1] = 0x00;
+		} else if (offset == IDS_USB_MANUFACTURER) {
+			put_utf16(b, "FuSa");
+		} else if (offset == IDS_USB_PRODUCT) {
+			put_utf16(b, "FuSa GamePad");
+		}
+	}
+
+	pspSdkSetK1(k1);
+	return ret;
+}
+
+static u32 *find_idstorage_lookup(void)
+{
+	return (u32 *)sctrlHENFindFunction("sceIdStorage_Service", "sceIdStorage_driver", IDSTORAGE_LOOKUP_NID);
+}
+
+static void flush_caches(void)
+{
+	sceKernelDcacheWritebackAll();
+	sceKernelIcacheInvalidateAll();
+}
+
+static void hook_idstorage(void)
+{
+	int intr = pspSdkDisableInterrupts();
+	u32 *addr = find_idstorage_lookup();
+
+	if (addr) {
+		lookup_trampoline[0] = addr[0];
+		lookup_trampoline[1] = addr[1];
+		lookup_trampoline[2] = MAKE_JUMP(addr + 2);
+		lookup_trampoline[3] = 0; /* nop (delay slot) */
+
+		addr[0] = MAKE_JUMP(sceIdStorageLookup_patched);
+		addr[1] = 0;
+		flush_caches();
+	}
+
+	pspSdkEnableInterrupts(intr);
+}
+
+static void unhook_idstorage(void)
+{
+	int intr = pspSdkDisableInterrupts();
+	u32 *addr = find_idstorage_lookup();
+
+	if (addr) {
+		addr[0] = lookup_trampoline[0];
+		addr[1] = lookup_trampoline[1];
+		flush_caches();
+	}
+
+	pspSdkEnableInterrupts(intr);
+}
 
 void fusaDisplay(int mode){
 	if (mode) {
@@ -165,11 +268,41 @@ int stop_func (int size, void *p)
   return 0;
 }
 
-#define check_but(b) ((pad.Buttons & b) == b) ? 1 : 0
+#define check_but(b) (((pad.Buttons & (b)) == (b)) ? 1 : 0)
+
+/* Analog mode: snap the stick to the center inside the dead zone */
+static void apply_deadzone(void)
+{
+	int dz = GPsettings.DeadZone;
+
+	if (pad.Ly > STICK_CENTER - dz && pad.Ly < STICK_CENTER + dz) pad.Ly = STICK_CENTER;
+	if (pad.Lx > STICK_CENTER - dz && pad.Lx < STICK_CENTER + dz) pad.Lx = STICK_CENTER;
+}
+
+/* Digital mode: the D-pad drives the axes and the stick drives the POV */
+static void swap_dpad_and_stick(void)
+{
+	int dz = GPsettings.DeadZone;
+	int lx = pad.Lx, ly = pad.Ly;
+	unsigned int b = pad.Buttons;
+
+	pad.Lx = STICK_CENTER;
+	pad.Ly = STICK_CENTER;
+	if (b & GPsettings.POV_UY) pad.Ly = 0;
+	if (b & GPsettings.POV_RX) pad.Lx = 0xFF;
+	if (b & GPsettings.POV_DY) pad.Ly = 0xFF;
+	if (b & GPsettings.POV_LX) pad.Lx = 0;
+
+	if (ly > STICK_CENTER + dz) b |= GPsettings.POV_DY; else b &= ~GPsettings.POV_DY;
+	if (ly < STICK_CENTER - dz) b |= GPsettings.POV_UY; else b &= ~GPsettings.POV_UY;
+	if (lx > STICK_CENTER + dz) b |= GPsettings.POV_RX; else b &= ~GPsettings.POV_RX;
+	if (lx < STICK_CENTER - dz) b |= GPsettings.POV_LX; else b &= ~GPsettings.POV_LX;
+	pad.Buttons = b;
+}
 
 int gamepad_int(SceSize args, void *argp)
 {
-	sceCtrlSetSamplingCycle(0);
+	sceCtrlSetSamplingCycle(CTRL_SAMPLING_CYCLE);
 	sceCtrlSetSamplingMode(PSP_CTRL_MODE_ANALOG);
 
 	usb_start();
@@ -181,13 +314,23 @@ int gamepad_int(SceSize args, void *argp)
 	memset( data, 0x00, sizeof(data) );
 	memset( data, 0x7F, AXIS_Rz+1 );
 
+		if (pad.Buttons & GPsettings.DigitalSwitcher) {
+			sceLedSetMode(LED_WLAN, 1, NULL);
+			swap_dpad_and_stick();
+		} else {
+			apply_deadzone();
+			sceLedSetMode(LED_WLAN, 0, NULL);
+		}
+
 		if (check_but(GPsettings.AxisSwitcher))
 		{
 		data[AXIS_Z] = pad.Ly;
 		data[AXIS_Rz] = pad.Lx;
+		sceLedSetMode(LED_MS, 1, NULL);
 		} else {
 		data[AXIS_X] = pad.Lx;
 		data[AXIS_Y] = pad.Ly;
+		sceLedSetMode(LED_MS, 0, NULL);
 		};
 
 		if ((pad.Buttons & GPsettings.POV_UY)) data[POV] = 1;
@@ -259,7 +402,9 @@ int usb_stop (void)
 
 int module_start (SceSize args, void *argp)
 {
-  SceUID main_thid = sceKernelCreateThread("gamepad_thread", gamepad_int, 32, 0x800, 0, NULL);
+  hook_idstorage();
+
+  SceUID main_thid = sceKernelCreateThread("fusapad_thread", gamepad_int, 32, 0x800, 0, NULL);
   if (main_thid >= 0) sceKernelStartThread(main_thid, args, argp);
 
   return 0;
@@ -268,6 +413,7 @@ int module_start (SceSize args, void *argp)
 int module_stop (SceSize args, void *argp)
 {
   active = 0;
+  unhook_idstorage();
 
   return 0;
 }

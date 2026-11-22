@@ -1,5 +1,16 @@
 # FuSa GAMEPAD
 
+> **About this fork**
+>
+> The upstream repository only contains the v0.2 source, while the released binary is v0.3.
+> This fork reconstructs the v0.3 behaviour in source (config.ini, dead zone, digital mode,
+> LED indication, "FuSa GamePad" USB identity).
+>
+> `SCREEN` is also accepted in config.ini (v0.3 ignored it).
+>
+> **Build** with [pspdev](https://github.com/pspdev/pspdev) (Linux / WSL / macOS): `./build.sh`,
+> then copy `bin/FusaGamePad` to `<your_psp>:/PSP/GAME/`.
+
 Perhaps a simpliest way to turn your psp into a powerful PC gamepad (and yes PS3 too)
 
 * Just launch this tiny homebrew 

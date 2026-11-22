@@ -1,5 +1,5 @@
 TARGET = usbgamepad
-OBJS   = usbhid.o
+OBJS   = usbhid.o stubs.o
 LIBS   = -lpspusb_driver -lpspusbbus_driver -lpspdisplay_driver
 
 USE_KERNEL_LIBC=1
