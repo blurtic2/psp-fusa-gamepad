@@ -1,0 +1,10 @@
+# The PSP toolchain runs on Linux/WSL; keep build files LF so make and sh work.
+*.c        text eol=lf
+*.h        text eol=lf
+*.S        text eol=lf
+*.exp      text eol=lf
+*.sh       text eol=lf
+Makefile   text eol=lf
+*.bat      text eol=crlf
+*.png      binary
+*.a        binary

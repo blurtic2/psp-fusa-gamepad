@@ -29,7 +29,7 @@ void waitbuttonup(int button)
 void display_config();
 
 void display_info(){
-	
+
 	pspDebugScreenSetXY(0,0);
 	printf(" .: FuSa GAMEPAD :: v0.2 :: coded by Andy_maN :: www.foosa.do.am :.\n");
 	pspDebugScreenSetXY(0,32);
@@ -37,17 +37,17 @@ void display_info(){
 }
 
 void user_wanna_exit(){
-	
+
 	pspDebugScreenSetXY(22,30);
 	printf("(X) EXIT | (O) CANCEL");
-	
+
 	display_config();
-	
+
 	int loop = 1;
-	
+
 	while (loop) {
 	fusaCtrlReadBufferPositive(&pad);
-	
+
 	if (pad.Buttons & PSP_CTRL_CROSS) {
 		waitbuttonup(PSP_CTRL_CROSS);
 		done = 1;
@@ -55,7 +55,7 @@ void user_wanna_exit(){
 		pspDebugScreenSetXY(22,30);
 		printf("     Exiting...      ");
 		};
-		
+
 	if (pad.Buttons & (PSP_CTRL_CIRCLE | PSP_CTRL_HOME)) {
 	waitbuttonup((PSP_CTRL_CIRCLE | PSP_CTRL_HOME));
 	loop = 0;
@@ -63,10 +63,10 @@ void user_wanna_exit(){
 	pspDebugScreenClear();
 	display_info();
 	}
-	
+
 	sceKernelDelayThread(10*1000);
 	}
-	
+
 
 }
 
@@ -124,11 +124,11 @@ return " none";
 
 void display_config(){
 	memset(buf, 0, sizeof(buf));
-	
+
 	fusaGetConfig(&settings);
-	
+
 	pspDebugScreenSetXY(22,4);
-	
+
 	printf("Axis Switcher:%s\n\n",button2str(settings.AxisSwitcher));
 	pspDebugScreenSetX(22);
 	printf("POV RIGHT:%s\n",button2str(settings.POV_RX));
@@ -139,7 +139,7 @@ void display_config(){
 	pspDebugScreenSetX(22);
 	printf("POV DOWN: %s\n\n",button2str(settings.POV_DY));
 	pspDebugScreenSetX(22);
-	
+
 	printf("Button1: %s\n",button2str(settings.Button1));
 	pspDebugScreenSetX(22);
 	printf("Button2: %s\n",button2str(settings.Button2));
@@ -169,49 +169,49 @@ void display_config(){
 int main(void)
 {
 	pspDebugScreenInit();
-	
+
 	display_info();
-	
+
 	SceUID mod;
 	mod = pspSdkLoadStartModule("usbgamepad.prx", PSP_MEMORY_PARTITION_KERNEL);
-	
+
 	if (mod < 0) {
 	pspDebugScreenSetXY(2,3);
-	printf(" Error - driver was not loaded\nExitting..."); 
+	printf(" Error - driver was not loaded\nExitting...");
 	sceKernelDelayThread(2000*1000);
 	done = 1;
 	}
-	
+
 	int count = 0;
-	
+
 	while(!done){
-		
+
 		if (fusaIsConnected()) {
-			
+
 			if (count > 700) fusaDisplay(0); else count++;
-			
+
 			pspDebugScreenSetXY(25,15);
 			printf(":: CONNECTED ::\n");
 		} else {
-			
+
 			fusaDisplay(1);
-			
+
 			count = 0;
-			
+
 			fusaCtrlReadBufferPositive(&pad);
-			
+
 			pspDebugScreenSetXY(25,15);
 	    	printf(">-CONNECTING-->\n");
-			
+
 			if (pad.Buttons & PSP_CTRL_HOME){
 			waitbuttonup(PSP_CTRL_HOME);
 			user_wanna_exit();
 			}
     	}
-    	
+
 		sceKernelDelayThread(10*1000);
 	}
-	
+
 	sceKernelExitGame();
 	return 0;
 }

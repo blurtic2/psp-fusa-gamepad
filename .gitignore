@@ -2,3 +2,11 @@
 /*.elf
 /*.sfo
 /release
+
+# build outputs
+src/**/*.o
+src/**/*.elf
+src/**/*.sfo
+src/**/*.prx
+src/**/*.PBP
+bin/FusaGamePad/
