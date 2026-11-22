@@ -1,5 +1,7 @@
 # FuSa GAMEPAD
 
+**English** · [한국어](README.ko.md) · [日本語](README.ja.md)
+
 > **About this fork**
 >
 > The upstream repository only contains the v0.2 source, while the released binary is v0.3.
@@ -37,6 +39,8 @@ This gamepad was designed as usual HID device, so that means you don't need to i
 
 It also compatible with PS3 console.
 
+v0.4 of this fork was tested on a PSP-3000 with 6.61 PRO-C Infinity, connected straight to a Windows PC by USB cable. Connecting through a USB hub did not work on that setup.
+
 ### What kind of GAMEPAD will I get?
 
 4 axises: (X/Y/Z/Rz) (Analog Joystick)
@@ -52,8 +56,8 @@ And 12 buttons:
 | Button 4 | TRIANGLE |
 | Button 5 | L-TRIGGER |
 | Button 6 | R-TRIGGER |
-| Button 7 | START |
-| Button 8 | SELECT |
+| Button 7 | SELECT |
+| Button 8 | START |
 | Button 9 | HOME |
 | Button 10 | VOLDOWN |
 | Button 11 | VOLUP |
@@ -88,9 +92,9 @@ Open CONFIG.INI with any text editor software.
 
 **AxiSwitcher**
 
-AxiSwitcher serves to switch between X/Y and R/Rz axes (Left and Right stick)
+AxiSwitcher serves to switch between X/Y and Z/Rz axes (Left and Right stick)
 
-*Note: Orange led will be lighting, when you hold AxiSwitcher.*
+*Note: the Memory Stick LED lights up while you hold AxiSwitcher.*
 
 **DigitalSwitcher**
 
@@ -100,13 +104,13 @@ Analog mode: psp's joystick controls axes and directional buttons control POV
 
 Digital mode: psp's joystick controls POV and directional buttons control axes
 
-Note: Orange led will be lighting, when you hold DigitalSwitcher.
+*Note: the WLAN LED lights up while Digital mode is on.*
 
 **DeadZone**
 
 Use it to adjust joystick's sensivity.
 
-Allowed values: 0-127
+Allowed values: 1-127
 
 **How to enter the menu?**
 
