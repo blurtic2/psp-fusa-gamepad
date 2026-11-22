@@ -144,6 +144,11 @@ Andy_maN (c) 2010
 ### Versions
 
 ***
+**v0.4** (this fork)
+* Much lower input latency: USB polling interval 64 ms → 125 µs, one packet per report
+* Controller sampling 60 Hz → ~180 Hz
+* v0.3 rebuilt from source; `SCREEN` accepted in config.ini
+***
 **v0.3**
 * Led indicating
 * Adjustable configuration (via config.ini)
