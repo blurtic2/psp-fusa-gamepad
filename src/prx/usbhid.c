@@ -17,8 +17,9 @@ int sceLedSetMode(int led, int mode, void *config);
 #define LED_MS   0  /* lit while AxisSwitcher is held    */
 #define LED_WLAN 1  /* lit while DigitalSwitcher is held */
 
-/* 0 = sample on VSYNC (60Hz) */
-#define CTRL_SAMPLING_CYCLE 0
+/* 5555us is the fastest cycle sceCtrl accepts (~180Hz).
+   The original used 0, which ties sampling to VSYNC (60Hz). */
+#define CTRL_SAMPLING_CYCLE 5555
 
 #define STICK_CENTER 127
 

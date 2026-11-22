@@ -4,7 +4,11 @@
 >
 > The upstream repository only contains the v0.2 source, while the released binary is v0.3.
 > This fork reconstructs the v0.3 behaviour in source (config.ini, dead zone, digital mode,
-> LED indication, "FuSa GamePad" USB identity).
+> LED indication, "FuSa GamePad" USB identity) and adds two latency fixes:
+>
+> * Interrupt endpoint: `wMaxPacketSize` 3/4 → 8 (one packet per report) and
+>   `bInterval` 10 → 1. At USB high speed the old value meant a 64 ms polling interval.
+> * Controller sampling: `sceCtrlSetSamplingCycle(0)` (VSYNC, 60 Hz) → `5555` µs (~180 Hz).
 >
 > `SCREEN` is also accepted in config.ini (v0.3 ignored it).
 >

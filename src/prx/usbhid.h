@@ -123,8 +123,8 @@ struct EndpointDescriptor endpdesc_hi[2] =
     USB_DT_ENDPOINT,
     0x81, /* bEndpointAddress */
     0x03, /* bmAttributes */
-    0x03, /* wMaxPacketSize */
-    0x0A  /* bInterval */
+    DATA_SIZE, /* wMaxPacketSize: whole report in one packet (was 3) */
+    0x01  /* bInterval: 2^(1-1) * 125us = 125us at high speed (was 0x0A = 64ms) */
   },
   {
     0,
@@ -220,8 +220,8 @@ struct EndpointDescriptor endpdesc_full[2] =
     USB_DT_ENDPOINT,
     0x81, /* bEndpointAddress */
     0x03, /* bmAttributes */
-    0x04, /* wMaxPacketSize */
-    0x0A  /* bInterval */
+    DATA_SIZE, /* wMaxPacketSize: whole report in one packet (was 4) */
+    0x01  /* bInterval: 1ms at full speed (was 0x0A = 10ms) */
   },
   {
     0,
